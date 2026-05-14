@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+skypilot_key.json
+create_secret.sh
+create_hmac_secret.sh
