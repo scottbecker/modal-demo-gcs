@@ -1,7 +1,6 @@
 import modal
 
-# 1. Define the image and add the original script to it
-# This image will be used for the containerized transformation
+# 1. Image definition
 image = (
     modal.Image.debian_slim()
     .pip_install("fastavro")
@@ -24,23 +23,15 @@ gcs_mount = modal.CloudBucketMount(
     volumes={"/dataflow_demo_data": gcs_mount}, 
     region="us-central",
     timeout=600,
-    min_containers=1,   # Keep a container ready to eliminate cold starts
-    cpu=2.0        # Allocate more CPU for faster transformation
+    cpu=2.0,
+    min_containers=1 # This will keep 1 instance warm when DEPLOYED
 )
 def run_transformation_in_container(input_path):
-    """
-    This function runs the transformation by executing the original 
-    python script as a separate process inside the container.
-    """
     import subprocess
-    import os
-    
     output_dir = "/dataflow_demo_data/modal_container_results"
     
     print(f"Container: Starting transformation for {input_path}...")
     
-    # Run the original script as a CLI tool
-    # The script is located at /root/json_to_avro_px.py (added via .add_local_file)
     result = subprocess.run([
         "python3", "/root/json_to_avro_px.py",
         input_path,
@@ -48,7 +39,7 @@ def run_transformation_in_container(input_path):
     ], capture_output=True, text=True)
     
     if result.returncode == 0:
-        return f"SUCCESS: {input_path}\n{result.stdout.strip()}"
+        return f"SUCCESS: {input_path}"
     else:
         return f"ERROR: {input_path}\nStderr: {result.stderr}"
 
@@ -62,16 +53,13 @@ def list_files(input_dir):
 @app.local_entrypoint()
 def main():
     input_dir = "/dataflow_demo_data/input"
-    
-    print("Listing files via Modal...")
+    print("Listing files...")
     files = list_files.remote(input_dir)
     
     if not files:
         print("No files found.")
         return
 
-    print(f"Processing {len(files)} files via containerized execution...")
-    
-    # Run transformations in parallel in the cloud
+    print(f"Processing {len(files)} files...")
     for result in run_transformation_in_container.map(files):
         print(result)
